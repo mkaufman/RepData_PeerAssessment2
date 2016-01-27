@@ -1,0 +1,342 @@
+---
+title: "U.S. Severe Weather Events Economic and Health Impacts"
+output: html_document
+---
+
+#Summary
+Using data from the NOAA Storm Database, I've determined the top 10 types of storm events measured by their impact to both human health, based on the number of reported injuries and fatalities, and the economic value of properties, goods, and resources. The key findings are that the top 5 event types impacting human health are [] and the top 5 event types with harmful economic impact are []. 
+
+#Data Processing
+
+
+Load libraries used in the analysis.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+
+Download the source data file from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database and load it into a data frame.
+
+```{r}
+url <- c("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2")
+
+# Commenting out download for now
+#download.file(url, destfile = "StormData.csv.bz2")
+
+df <- read.csv(bzfile("StormData.csv.bz2"))
+
+# to backup when I screw things up
+df_backup <- df
+
+```
+
+
+Investigate values of the EXP variables using group by. This may later be removed.
+
+```{r}
+by_PROPDMGEXP <- group_by(df, PROPDMGEXP)
+PROPDMGEXP_counts <- summarise(by_PROPDMGEXP, count = n())
+```
+
+
+Convert the EVTYPES to character from factor. Then covert to all UPPERCASE.
+
+```{r}
+
+df$EVTYPE <- as.character(df$EVTYPE)
+df$EVTYPE <- toupper(df$EVTYPE)
+
+```
+
+
+Create Year Column.
+
+```{r}
+
+df$year <- format(strptime(df$BGN_DATE, "%m/%d/%Y %H:%M:%S"),"%Y")
+
+```
+
+
+Create Combined Fatalities and Injuries Column
+
+```{r}
+
+df$combined <- df$INJURIES + df$FATALITIES
+
+```
+
+
+Compute the economic damage for each event. First need to translate the values in Property Damage (PROPDMGEXP) and Crop Damange (CROPDMGEXP) columns to numbers that can be used in the calculations. 
+
+
+```{r}
+# Capitalize all PROPDMGEXP and CROPDMGEXP values
+df$PROPDMGEXP <- as.character(df$PROPDMGEXP)
+df$PROPDMGEXP <- toupper(df$PROPDMGEXP)
+df$CROPDMGEXP <- as.character(df$CROPDMGEXP)
+df$CROPDMGEXP <- toupper(df$CROPDMGEXP)
+
+
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "" | df$PROPDMGEXP == "-" | df$PROPDMGEXP == "?" | df$PROPDMGEXP == "+"] <- 1
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "0"] <- 1
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "1"] <- 10
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "2"] <- 10^2
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "3"] <- 10^3
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "4"] <- 10^4
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "5"] <- 10^5
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "6"] <- 10^6
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "7"] <- 10^7
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "8"] <- 10^8
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "9"] <- 10^9
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "H"] <- 100
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "K"] <- 1000
+df$PROPDMGEXP_multi[df$PROPDMGEXP == "M"] <- 1000000
+
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "" | df$CROPDMGEXP == "-" | df$CROPDMGEXP == "?" | df$CROPDMGEXP == "+"] <- 1
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "0"] <- 1
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "1"] <- 10
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "2"] <- 10^2
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "3"] <- 10^3
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "4"] <- 10^4
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "5"] <- 10^5
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "6"] <- 10^6
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "7"] <- 10^7
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "8"] <- 10^8
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "9"] <- 10^9
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "H"] <- 1000
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "K"] <- 1000
+df$CROPDMGEXP_multi[df$CROPDMGEXP == "M"] <- 1000000
+
+as.numeric(df$PROPDMG)
+as.numeric(df$CROPDMG)
+df$total_damage <- df$PROPDMG * df$PROPDMGEXP_multi + df$CROPDMG * df$CROPDMGEXP_multi
+
+```
+
+
+Remove data that skews the analysis. Although the NOAA started reporting Tornadoes in 1950, the official 48 event types did not start reporting until 1996,
+
+```{r}
+
+df_econ <- filter(df, year > 1995)
+
+```
+
+
+
+# Create a reference table of EVTYPE frequency. Compare before and after the clean-up. May want to remove this later.
+```{r}
+events_recordedA <- count(df_econ, EVTYPE)
+# view most popular EVTYPEs
+arrange(events_recordedA, desc(n))
+        
+```
+
+
+
+Clean up the EVTYPEs, which are a mess. 
+
+Strip leading tabs or spaces that are at the beginning of names. example REFNUM 448421, which begins with a tab
+
+```{r}
+
+```
+
+
+
+Determine the most costly events. 
+Approach #1: Use df_econ. Total economic cost for 1996 - present.
+
+
+```{r}
+
+by_EVTYPE <- group_by(df_econ, EVTYPE)
+by_EVTYPE_total_cost <- summarise(by_EVTYPE, total_cost = sum(total_damage), INJURIES = sum(INJURIES), FATALITIES = sum(FATALITIES), injuries_and_death = sum(combined), count = n())
+
+# Compute Average cost per event
+by_EVTYPE_total_cost$avg_cost_per_event <- as.integer(by_EVTYPE_total_cost$total_cost / by_EVTYPE_total_cost$count)
+
+
+# Compute Average fatalities and injuries per event
+by_EVTYPE_total_cost$avg_injuries_and_death_per_event <- as.integer(by_EVTYPE_total_cost$injuries_and_death / by_EVTYPE_total_cost$count)
+
+```
+
+plot the top 10 events by total cost
+
+```{r}
+top10econ <- arrange(by_EVTYPE_total_cost, desc(total_cost))[1:10,]
+
+top10econ$total_cost <- top10econ$total_cost/10^9
+
+c <- ggplot(top10econ, aes(x = EVTYPE, y = total_cost))
+c + geom_bar(stat = "identity") + labs(title = "Top 10 Most Economically Harmful U.S. Storm Event Types (1996-2011)", x = "Event Type", y = "Economic Impact (Billions U.S. Dollars)") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+plot the avg economic impact per event for the top 10 events by total cost
+```{r}
+top10econ$avgcostperevent <- by_EVTYPE_total_cost$[fil]
+
+# original approach, can probably be deleted
+audit3 <- filter(by_EVTYPE_total_cost, by_EVTYPE_total_cost$EVTYPE%in%intersect(by_EVTYPE_total_cost$EVTYPE,top10econ$EVTYPE))
+
+
+audit4 <- filter(by_EVTYPE_total_cost, by_EVTYPE_total_cost$EVTYPE%in%top10econ$EVTYPE)
+
+
+c <- ggplot(filter(by_EVTYPE_total_cost, by_EVTYPE_total_cost$EVTYPE%in%top10econ$EVTYPE), aes(x = EVTYPE, y = avg_cost_per_event/10^6))
+c + geom_bar(stat = "identity") + labs(title = "Top 10 Most Economically Harmful U.S. Storm Event Types (1996-2011)", x = "Event Type", y = "Average Economic Impact Per Recorded Event (Millions U.S. Dollars)") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+
+plot the number of events over time
+
+
+
+plot the top 10 events based on total injuries AND fatalities 
+
+```{r}
+top10injuries_and_death <- arrange(by_EVTYPE_total_cost, desc(injuries_and_death))[1:10,]
+
+c <- ggplot(top10injuries_and_death, aes(x = EVTYPE, y = injuries_and_death))
+c + geom_bar(stat = "identity") + labs(title = "Top 10 U.S. Storm Event Types Causing Most Human Health Harm (1996-2011)", x = "Event Type", y = "Number of Fatalities and Injuries") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+plot the top 10 events based on total injuries 
+
+```{r}
+top10injuries <- arrange(by_EVTYPE_total_cost, desc(INJURIES))[1:10,]
+
+c <- ggplot(top10injuries, aes(x = EVTYPE, y = INJURIES))
+c + geom_bar(stat = "identity") + labs(title = "Top 10 U.S. Storm Event Types Causing Most Human Health Harm (1996-2011)", x = "Event Type", y = "Number of Injuries") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+plot the top 10 events based on total fatalities 
+```{r}
+top10fatalities <- arrange(by_EVTYPE_total_cost, desc(FATALITIES))[1:10,]
+
+c <- ggplot(top10fatalities, aes(x = EVTYPE, y = FATALITIES))
+c + geom_bar(stat = "identity") + labs(title = "Top 10 U.S. Storm Event Types Causing Most Human Health Harm (1996-2011)", x = "Event Type", y = "Number of Fatalities") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+
+
+Approach #2: take the yearly average damage across all years. Would likely need to show frequency as well as mean. THIS APPROACH CAN PROBABLY BE DELETED!
+ 
+```{r}
+by_year <- group_by(df, year, EVTYPE)
+df_year_summary <- summarise(by_year, count = n(), fatalities = sum(FATALITIES), injuries = sum(INJURIES), combined = fatalities + injuries, avg_prop_dmg = mean(total_damage))
+
+
+by_EVTYPE <- group_by(df_year_sum, EVTYPE)
+by_EVTYPE_avg <- summarise(by_EVTYPE, event_avg = mean(avg_prop_dmg))
+
+
+##descList <- arrange(by_EVTYPE_sum, desc(combined_total))
+```
+
+
+Exploring data: summarize FATALITIES and INJURIES by year and by Event type.
+```{r}
+fatalitiesByYeardf <- aggregate(FATALITIES~year,df,sum, na.action=na.pass)
+fatalitiesByEventdf <- aggregate(FATALITIES~EVTYPE,df,sum, na.action=na.pass)
+
+aggregate(combined~year,df,sum, na.action=na.pass)
+aggregate(combined~EVTYPE,df,sum, na.action=na.pass)
+
+
+```
+
+Remove rows where combined fatalities/injuries is < 10 or the year is prior 1996. The official 48 event types did not start reporting until 1996 
+
+```{r}
+
+df <- filter(df, combined > 10 & year > 1995)
+
+```
+
+
+Using instructions from https://www.coursera.org/learn/reproducible-research/discussions/TNzTvLhrEeWJPQ76oZDWrw:
+
+# Create a reference table of EVTYPE frequency.
+```{r}
+events_recorded <- count(df, EVTYPE)
+# view most popular EVTYPEs
+arrange(events_recorded, desc(n))
+        
+```
+
+Based on manual analysis, the following event type names need to be transformed to match the official types. 
+
+Conversions
+COLD AND SNOW > COLD
+EXTREME COLD > EXTREME COLD/WIND CHILL
+FOG > DENSE FOG
+HEAT WAVE > HEAT
+HEAVY SURF/HIGH SURF > HIGH SURF
+HURRICANE > HURRICANT/TYPHOON
+RIP CURRENTS > RIP CURRENT
+SNOW SQUALL > HEAVY SNOW
+STORM SURGE > SNOW SURGE/TIDE
+TSTM WIND > THUNDERSTORM WIND
+TSTM WIND/HAIL > THUNDERSTORP WIND
+UNSEASONABLY WARM > HEAT
+URBAN/SML STREAM FLD > FLOOD
+WILD/FOREST FIRE > WILDFIRE
+WIND > HIGH WIND
+WINTER WEATHER MIX > WINTER WEATHER
+WINTER WEATHER/MIX > WINTER WEATHER
+WINTRY MIX > WINTER WEATHER
+
+```{r}
+df$EVTYPE <- str_replace_all(df$EVTYPE,c("COLD AND SNOW" = "COLD", "EXTREME COLD" = "EXTREME COLD/WIND CHILL", "FOG" = "DENSE FOG", "HEAT WAVE" = "HEAT", "HEAVY SURF/HIGH SURF" = "HIGH SURF", "HURRICANE" = "HURRICANT/TYPHOON", "RIP CURRENTS" = "RIP CURRENT", "SNOW SQUALL" = "HEAVY SNOW", "STORM SURGE" = "SNOW SURGE/TIDE", "TSTM WIND" = "THUNDERSTORM WIND", "TSTM WIND/HAIL" = "THUNDERSTORP WIND", "UNSEASONABLY WARM" = "HEAT", "URBAN/SML STREAM FLD" = "FLOOD", "WILD/FOREST FIRE" = "WILDFIRE", "WIND" = "HIGH WIND", "WINTER WEATHER MIX" = "WINTER WEATHER", "WINTER WEATHER/MIX" = "WINTER WEATHER", "WINTRY MIX" = "WINTER WEATHER"))
+
+```
+
+
+However, what we really may want to see is the number of fatalities for each event for each year. 
+
+```{r}
+
+by_year <- group_by(df, year, EVTYPE)
+df_year_sum <- summarise(by_year, count = n(), fatalities = sum(FATALITIES), injuries = sum(INJURIES), combined = fatalities + injuries)
+```
+
+Across the United States, which types of events (as indicated in the 𝙴𝚅𝚃𝚈𝙿𝙴 variable) are most harmful with respect to population heheaalth?
+
+We could look at the total number of combined fatalities and injuries per EVTYPE.
+
+```{r}
+by_EVTYPE <- group_by(df_year_sum, EVTYPE)
+by_EVTYPE_sum <- summarise(by_EVTYPE, combined_total = sum(combined), combined_avg = mean(combined))
+descList <- arrange(by_EVTYPE_sum, desc(combined_total))
+```
+
+We could also looke at the average number (across years where there is at least one value?)
+
+TIPS FROM FORUMS:
+https://www.coursera.org/learn/reproducible-research/discussions/TNzTvLhrEeWJPQ76oZDWrw
+Cleaning the records first might reduce the amount of work to clean the variables. In other words, can you justify removing some records from the analysis?
+
+This website shows that NOAA started recording all event types in 1996. I see a lot of people satisfying the grading rubic, but completely omitting basic exploratory analysis of the numbers. For example, NOAA started reporting Tornadoes in 1950, but the official 48 event types did not start reporting until 1996,
+
+I cleaned layout08.doc and saved it as layout08.csv, you can find it here https://github.com/mat4med/RepData_PeerAssessment2.git
+
+On adjusting for inflation (from a course Mentor):
+Inflation and deflation adjustments are not required. By following reproducible research techniques someone could take your analysis without these adjustments and incorporate them to determine the impact. As such the original approach is valid according to the grading rubric criteria. Whether the report meets all of the other criteria in the grading rubric notwithstanding. Therefore, do not deduct points if a report has not accounted for economic fluctuations.
+
+But if I did want to adjust for inflation, info at:
+https://www.coursera.org/learn/reproducible-research/discussions/RNkWr7kuEeWlQwoU9G612w
+
+
